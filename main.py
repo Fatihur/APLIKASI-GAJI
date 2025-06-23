@@ -10,14 +10,22 @@ from excel_reader import ExcelReader
 from pdf_converter import PDFConverter
 from pdf_converter_capture import PDFConverterCapture
 import threading
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
 
 class ExcelToPDFApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Excel to PDF Converter")
-        self.root.geometry("900x700")
-        self.root.configure(bg='#f0f0f0')
-        self.root.minsize(800, 600)
+        self.root.title("SLIP GAJI PDF GENERATE")
+        self.root.geometry("1000x800")
+        self.root.configure(bg='#1a1a1a')  # Dark background
+        self.root.minsize(900, 700)
+
+        # Set default options (hidden from UI but functional)
+        self.bulk_mode_var = tk.BooleanVar(value=True)
+        self.preserve_format_var = tk.BooleanVar(value=True)
+        self.enable_watermark_var = tk.BooleanVar(value=True)
+        self.conversion_method_var = tk.StringVar(value="capture")
         
         self.excel_files = []  # Changed to support multiple files
         self.files_data = {}   # Data for all files
@@ -28,16 +36,17 @@ class ExcelToPDFApp:
         self.file_checkbox_widgets = {}  # Checkbox widgets per file
 
         self.setup_ui()
-        
+
     def setup_ui(self):
-        # Configure root grid
+        # Configure root grid for dark mode
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
+        self.root.configure(bg='#1a1a1a')  # Dark background
 
-        # Create main canvas and scrollbar for scrolling
-        canvas = tk.Canvas(self.root, bg='#f0f0f0')
-        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        # Create main canvas and scrollbar for dark mode
+        canvas = tb.Canvas(self.root, background='#1a1a1a', highlightthickness=0)
+        scrollbar = tb.Scrollbar(self.root, orient="vertical", command=canvas.yview, bootstyle="light-round")
+        scrollable_frame = tb.Frame(canvas, bootstyle="dark")
 
         scrollable_frame.bind(
             "<Configure>",
@@ -51,172 +60,157 @@ class ExcelToPDFApp:
         canvas.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
 
-        # Main frame inside scrollable frame
-        main_frame = ttk.Frame(scrollable_frame, padding="20")
+        # Main frame inside scrollable frame with dark styling
+        main_frame = tb.Frame(scrollable_frame, padding=(35, 30, 35, 30), bootstyle="dark")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Title
-        title_label = ttk.Label(main_frame, text="Excel to PDF Converter",
-                               font=('Arial', 16, 'bold'))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 15))
-        
-        # File selection
-        file_frame = ttk.LabelFrame(main_frame, text="Select Excel Files", padding="10")
-        file_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
+        # Title with dark mode styling
+        title_label = tb.Label(main_frame, text=" SLIP GAJI PDF GENERATE",
+                               font=('Segoe UI', 24, 'bold'), bootstyle="light",
+                               background='#1a1a1a', foreground='#ffffff')
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 30))
+
+        # File selection with dark mode styling
+        file_frame = tb.LabelFrame(main_frame, text="📁 Select Excel Files", padding="20", bootstyle="info")
+        file_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 25))
 
         # File list with checkboxes
-        files_list_frame = ttk.Frame(file_frame)
-        files_list_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        files_list_frame = tb.Frame(file_frame)
+        files_list_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 8))
 
         # Simple frame for file checkboxes
-        self.files_container = ttk.Frame(files_list_frame)
+        self.files_container = tb.Frame(files_list_frame)
         self.files_container.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=5, pady=5)
 
         # Add "Select All Files" checkbox
         self.select_all_files_var = tk.BooleanVar()
-        select_all_cb = ttk.Checkbutton(files_list_frame, text="Select All Files",
+        select_all_cb = tb.Checkbutton(files_list_frame, text="Select All Files",
                                        variable=self.select_all_files_var,
                                        command=self.toggle_all_files)
         select_all_cb.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
 
         # File control buttons
-        file_buttons_frame = ttk.Frame(file_frame)
-        file_buttons_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E))
+        file_buttons_frame = tb.Frame(file_frame)
+        file_buttons_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(8, 0))
 
-        ttk.Button(file_buttons_frame, text="Add Files", command=self.browse_files).grid(row=0, column=0, padx=(0, 5))
-        ttk.Button(file_buttons_frame, text="Remove Selected", command=self.remove_selected_file).grid(row=0, column=1, padx=(0, 5))
-        ttk.Button(file_buttons_frame, text="Clear All", command=self.clear_all_files).grid(row=0, column=2, padx=(0, 5))
-        ttk.Button(file_buttons_frame, text="Set Folder Name", command=self.set_folder_name).grid(row=0, column=3)
+        tb.Button(file_buttons_frame, text="Add Files", command=self.browse_files, width=14).grid(row=0, column=0, padx=(0, 8))
+        tb.Button(file_buttons_frame, text="Remove Selected", command=self.remove_selected_file, width=16).grid(row=0, column=1, padx=(0, 8))
+        tb.Button(file_buttons_frame, text="Clear All", command=self.clear_all_files, width=10).grid(row=0, column=2, padx=(0, 8))
+        tb.Button(file_buttons_frame, text="Set Folder Name", command=self.set_folder_name, width=16).grid(row=0, column=3)
 
-        # Output directory selection
-        output_frame = ttk.LabelFrame(main_frame, text="Output Directory", padding="10")
-        output_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
+        # Output directory selection with dark mode styling
+        output_frame = tb.LabelFrame(main_frame, text="📂 Output Directory", padding="20", bootstyle="secondary")
+        output_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 25))
 
         self.output_path_var = tk.StringVar()
-        ttk.Entry(output_frame, textvariable=self.output_path_var, width=50, state='readonly').grid(row=0, column=0, padx=(0, 10))
-        ttk.Button(output_frame, text="Browse", command=self.browse_output_directory).grid(row=0, column=1)
+        tb.Entry(output_frame, textvariable=self.output_path_var, width=50, state='readonly').grid(row=0, column=0, padx=(0, 10))
+        tb.Button(output_frame, text="Browse", command=self.browse_output_directory, width=10).grid(row=0, column=1)
 
         # Default output directory info
-        default_info = ttk.Label(output_frame, text="(Leave empty to save in same directory as Excel file)",
+        default_info = tb.Label(output_frame, text="(Leave empty to save in same directory as Excel file)",
                                 font=('Arial', 8), foreground='gray')
         default_info.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
-        
-        # Sheets selection
-        sheets_frame = ttk.LabelFrame(main_frame, text="Select Sheets to Convert (Auto-ignores: Payroll adjust, Database, Summary Amman, etc.)", padding="10")
-        sheets_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
-        
-        # Sheets listbox with scrollbar
-        listbox_frame = ttk.Frame(sheets_frame)
-        listbox_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        self.sheets_listbox = tk.Listbox(listbox_frame, selectmode=tk.MULTIPLE, height=6)
-        sheets_scrollbar = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.sheets_listbox.yview)
+        # Sheets selection with dark mode styling
+        sheets_frame = tb.LabelFrame(main_frame, text="📋 Select Sheets to Convert", padding="20", bootstyle="success")
+        sheets_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 25))
+
+        # Add info label for auto-ignore feature
+        info_label = tb.Label(sheets_frame,
+                              text="ℹ️ Auto-ignores: Payroll adjust, Database, Summary sheets, etc.",
+                              style='Info.TLabel')
+        info_label.grid(row=0, column=0, columnspan=3, sticky=tk.W, pady=(0, 8))
+
+        # Sheets listbox with scrollbar
+        listbox_frame = tb.Frame(sheets_frame)
+        listbox_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        self.sheets_listbox = tk.Listbox(listbox_frame, selectmode=tk.MULTIPLE, height=6, font=('Segoe UI', 10))
+        sheets_scrollbar = tb.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=self.sheets_listbox.yview)
         self.sheets_listbox.configure(yscrollcommand=sheets_scrollbar.set)
 
         self.sheets_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         sheets_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        
+
         # Selection buttons
-        button_frame = ttk.Frame(sheets_frame)
-        button_frame.grid(row=1, column=0, columnspan=3, pady=(10, 0))
-        
-        ttk.Button(button_frame, text="Select All", command=self.select_all_sheets).grid(row=0, column=0, padx=(0, 10))
-        ttk.Button(button_frame, text="Clear All", command=self.clear_all_sheets).grid(row=0, column=1)
-        
-        # Conversion options
-        options_frame = ttk.LabelFrame(main_frame, text="Conversion Options", padding="10")
-        options_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
-        
-        self.bulk_mode_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(options_frame, text="Bulk Mode (One PDF per sheet)", 
-                       variable=self.bulk_mode_var).grid(row=0, column=0, sticky=tk.W)
-        
-        self.preserve_format_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(options_frame, text="Preserve Original Formatting",
-                       variable=self.preserve_format_var).grid(row=1, column=0, sticky=tk.W)
+        button_frame = tb.Frame(sheets_frame)
+        button_frame.grid(row=2, column=0, columnspan=3, pady=(12, 0))
 
-        # Conversion method selection
-        method_frame = ttk.Frame(options_frame)
-        method_frame.grid(row=2, column=0, sticky=tk.W, pady=(10, 0))
+        tb.Button(button_frame, text="Select All", command=self.select_all_sheets, width=12).grid(row=0, column=0, padx=(0, 8))
+        tb.Button(button_frame, text="Clear All", command=self.clear_all_sheets, width=12).grid(row=0, column=1)
 
-        ttk.Label(method_frame, text="Conversion Method:").grid(row=0, column=0, sticky=tk.W)
+        # Conversion options are hidden but functional (set in __init__)
 
-        self.conversion_method_var = tk.StringVar(value="capture")
-        ttk.Radiobutton(method_frame, text="Capture Method (Recommended)",
-                       variable=self.conversion_method_var, value="capture").grid(row=1, column=0, sticky=tk.W, padx=(20, 0))
-        ttk.Radiobutton(method_frame, text="Direct Method (Fastest)",
-                       variable=self.conversion_method_var, value="direct").grid(row=2, column=0, sticky=tk.W, padx=(20, 0))
-        ttk.Radiobutton(method_frame, text="Table Conversion",
-                       variable=self.conversion_method_var, value="table").grid(row=3, column=0, sticky=tk.W, padx=(20, 0))
+        # Convert button and progress with dark mode styling
+        convert_frame = tb.LabelFrame(main_frame, text="🚀 Convert to PDF", padding="25", bootstyle="warning")
+        convert_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(15, 25))
 
-        # Method description
-        desc_frame = ttk.Frame(options_frame)
-        desc_frame.grid(row=3, column=0, sticky=tk.W, pady=(5, 0))
+        # Convert button with dark mode styling
+        self.convert_button = tb.Button(convert_frame, text="🚀 Convert to PDF",
+                                        command=self.start_conversion, state='disabled',
+                                        bootstyle="success-outline", width=30)
+        self.convert_button.grid(row=0, column=0, columnspan=3, pady=(0, 20), sticky=(tk.W, tk.E))
 
-        self.method_desc_var = tk.StringVar(value="Capture method preserves exact Excel layout and formatting")
-        ttk.Label(desc_frame, textvariable=self.method_desc_var,
-                 font=('Arial', 8), foreground='gray').grid(row=0, column=0, sticky=tk.W, padx=(20, 0))
-
-        # Bind method change to update description
-        self.conversion_method_var.trace('w', self.update_method_description)
-        
-        # Convert button and progress
-        convert_frame = ttk.LabelFrame(main_frame, text="Convert to PDF", padding="15")
-        convert_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 15))
-
-        # Convert button
-        self.convert_button = ttk.Button(convert_frame, text="🔄 Convert to PDF",
-                                        command=self.start_conversion, state='disabled')
-        self.convert_button.grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky=(tk.W, tk.E))
-
-        # Progress bar
-        progress_label = ttk.Label(convert_frame, text="Progress:")
-        progress_label.grid(row=1, column=0, sticky=tk.W, padx=(0, 10))
+        # Progress bar with dark mode styling
+        progress_label = tb.Label(convert_frame, text="📊 Progress:",
+                                  font=('Segoe UI', 12, 'bold'), bootstyle="light")
+        progress_label.grid(row=1, column=0, sticky=tk.W, padx=(0, 15), pady=(8, 0))
 
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(convert_frame, variable=self.progress_var,
-                                          maximum=100, length=400)
-        self.progress_bar.grid(row=1, column=1, sticky=(tk.W, tk.E))
+        self.progress_bar = tb.Progressbar(convert_frame, variable=self.progress_var,
+                                          maximum=100, length=500, mode='determinate', bootstyle="success-striped")
+        self.progress_bar.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=(8, 0))
 
         # Progress percentage label
         self.progress_percent_var = tk.StringVar(value="0%")
-        progress_percent_label = ttk.Label(convert_frame, textvariable=self.progress_percent_var,
-                                         font=('Arial', 9, 'bold'))
-        progress_percent_label.grid(row=1, column=2, padx=(10, 0))
+        progress_percent_label = tb.Label(convert_frame, textvariable=self.progress_percent_var,
+                                         font=('Segoe UI', 12, 'bold'), bootstyle="success")
+        progress_percent_label.grid(row=1, column=2, padx=(15, 0), pady=(8, 0))
 
-        # Current sheet being processed
+        # Current sheet being processed with dark mode styling
         self.current_sheet_var = tk.StringVar(value="")
-        current_sheet_label = ttk.Label(convert_frame, textvariable=self.current_sheet_var,
-                                       font=('Arial', 9), foreground='green')
-        current_sheet_label.grid(row=2, column=0, columnspan=3, pady=(5, 0), sticky=tk.W)
+        current_sheet_label = tb.Label(convert_frame, textvariable=self.current_sheet_var,
+                                       font=('Segoe UI', 10, 'bold'), bootstyle="success")
+        current_sheet_label.grid(row=2, column=0, columnspan=3, pady=(12, 8), sticky=tk.W)
 
-        # Status label
-        self.status_var = tk.StringVar(value="Add Excel files to begin")
-        status_label = ttk.Label(convert_frame, textvariable=self.status_var,
-                                font=('Arial', 9), foreground='blue')
-        status_label.grid(row=3, column=0, columnspan=3, pady=(5, 0), sticky=tk.W)
-        
-        # Configure grid weights
-        scrollable_frame.columnconfigure(0, weight=1)
-        scrollable_frame.rowconfigure(0, weight=1)
+        # Status label with dark mode styling
+        self.status_var = tk.StringVar(value="🌙 Add Excel files to begin")
+        status_label = tb.Label(convert_frame, textvariable=self.status_var,
+                                font=('Segoe UI', 10), bootstyle="info")
+        status_label.grid(row=3, column=0, columnspan=3, pady=(8, 0), sticky=tk.W)
 
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(3, weight=1)  # Sheets frame gets extra space
+        # Responsive: all frames and widgets expand horizontally & vertically
+        responsive_frames = [main_frame, file_frame, files_list_frame, output_frame, sheets_frame, listbox_frame, button_frame, convert_frame]
+        for frame in responsive_frames:
+            frame.grid(sticky="nsew")
+            for col in range(4):
+                try:
+                    frame.grid_columnconfigure(col, weight=1)
+                except:
+                    pass
+            for row in range(4):
+                try:
+                    frame.grid_rowconfigure(row, weight=1)
+                except:
+                    pass
 
-        # File and output frames
-        file_frame.columnconfigure(0, weight=1)
-        files_list_frame.columnconfigure(0, weight=1)
-        output_frame.columnconfigure(0, weight=1)
+        # Pastikan root dan scrollable_frame juga responsif
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        scrollable_frame.grid_rowconfigure(0, weight=1)
+        scrollable_frame.grid_columnconfigure(0, weight=1)
+        main_frame.grid_rowconfigure(3, weight=1)
+        main_frame.grid_columnconfigure(0, weight=1)
 
-        # Sheets frame
-        sheets_frame.columnconfigure(0, weight=1)
-        sheets_frame.rowconfigure(0, weight=1)
-        listbox_frame.columnconfigure(0, weight=1)
-        listbox_frame.rowconfigure(0, weight=1)
+        # Listbox dan scrollbar expand
+        self.sheets_listbox.grid(sticky="nsew")
+        sheets_scrollbar.grid(sticky="ns")
+        listbox_frame.grid_rowconfigure(0, weight=1)
+        listbox_frame.grid_columnconfigure(0, weight=1)
 
-        # Convert frame
-        convert_frame.columnconfigure(1, weight=1)
-        convert_frame.columnconfigure(2, weight=0)  # Progress percentage column
+        # Progress bar expands
+        self.progress_bar.grid(sticky="ew")
+        convert_frame.grid_columnconfigure(1, weight=1)
 
         # Bind mousewheel to canvas for scrolling
         def _on_mousewheel(event):
@@ -291,7 +285,7 @@ class ExcelToPDFApp:
         self.file_checkboxes[file_path] = var
 
         # Create checkbox directly in container
-        checkbox = ttk.Checkbutton(self.files_container, text=filename, variable=var,
+        checkbox = tb.Checkbutton(self.files_container, text=filename, variable=var,
                                   command=self.update_convert_button_state)
         checkbox.pack(anchor=tk.W, padx=5, pady=2)
 
@@ -511,15 +505,7 @@ class ExcelToPDFApp:
     def clear_all_sheets(self):
         self.sheets_listbox.selection_clear(0, tk.END)
 
-    def update_method_description(self, *args):
-        """Update description based on selected conversion method"""
-        method = self.conversion_method_var.get()
-        if method == "capture":
-            self.method_desc_var.set("Capture method preserves exact Excel layout and formatting (recommended)")
-        elif method == "direct":
-            self.method_desc_var.set("Direct method: Fastest conversion, no Excel app needed")
-        else:
-            self.method_desc_var.set("Table conversion method converts data to PDF tables (no Excel required)")
+
         
     def start_conversion(self):
         if not self.excel_files:
@@ -611,7 +597,11 @@ class ExcelToPDFApp:
                     self.current_sheet_var.set(f"📄 Reading: {file_display_name}")
                     self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
 
-                    converter = PDFConverterDirect()
+                    converter = PDFConverterDirect(
+                        enable_watermark=self.enable_watermark_var.get(),
+                        watermark_opacity=0.3,
+                        watermark_position="bottom-right"
+                    )
 
                     # Convert all sheets directly (fastest)
                     results = converter.convert_excel_to_pdf_direct(file_path, sheets_to_convert, file_output_dir, folder_prefix)
@@ -644,7 +634,11 @@ class ExcelToPDFApp:
                     self.current_sheet_var.set(f"📄 Opening: {file_display_name}")
                     self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
 
-                    converter = PDFConverterCapture()
+                    converter = PDFConverterCapture(
+                        enable_watermark=self.enable_watermark_var.get(),
+                        watermark_opacity=0.3,
+                        watermark_position="bottom-right"
+                    )
 
                     # Convert all sheets in one Excel session (faster)
                     results = converter.convert_excel_to_pdf(file_path, sheets_to_convert, file_output_dir, folder_prefix)
@@ -740,6 +734,11 @@ class ExcelToPDFApp:
         return f"{len(self.excel_files)} file(s) loaded, {total_sheets} sheets total (sheets 1-9 ignored)"
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    import ttkbootstrap as tb
+    import tkinter as tk
+    import os, threading
+
+    # Use dark theme
+    root = tb.Window(themename="darkly")  # Dark mode theme
     app = ExcelToPDFApp(root)
     root.mainloop()

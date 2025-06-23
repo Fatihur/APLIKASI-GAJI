@@ -13,11 +13,16 @@ from reportlab.lib.units import mm
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import tempfile
+from watermark_manager import WatermarkManager
 
 class PDFConverterDirect:
-    def __init__(self):
+    def __init__(self, enable_watermark=True, watermark_opacity=0.3, watermark_position="bottom-right"):
         """Initialize direct PDF converter"""
         self.styles = getSampleStyleSheet()
+        self.enable_watermark = enable_watermark
+        self.watermark_manager = WatermarkManager() if enable_watermark else None
+        self.watermark_opacity = watermark_opacity
+        self.watermark_position = watermark_position
         
     def convert_excel_to_pdf_direct(self, excel_file, selected_sheets, output_directory, folder_prefix=""):
         """
@@ -61,8 +66,18 @@ class PDFConverterDirect:
                     
                     # Konversi sheet ke PDF
                     success = self._convert_sheet_to_pdf(workbook, sheet_name, pdf_path)
-                    
+
                     if success:
+                        # Tambahkan watermark jika enabled
+                        if self.enable_watermark and self.watermark_manager:
+                            watermark_success = self.watermark_manager.add_watermark_to_pdf(
+                                pdf_path,
+                                opacity=self.watermark_opacity,
+                                position=self.watermark_position
+                            )
+                            if not watermark_success:
+                                print(f"⚠️  Failed to add watermark to {sheet_name}")
+
                         results[sheet_name] = pdf_path
                     else:
                         results[sheet_name] = None
@@ -145,9 +160,15 @@ class PDFConverterDirect:
             
             elements.append(table)
             
+            # Tambahkan watermark jika enabled
+            if self.enable_watermark and self.watermark_manager and self.watermark_manager.watermark_exists:
+                watermark_element = self._create_watermark_element(page_size, self.watermark_position, self.watermark_opacity)
+                if watermark_element:
+                    elements.append(watermark_element)
+
             # Build PDF
             doc.build(elements)
-            
+
             return True
             
         except Exception as e:
@@ -318,6 +339,49 @@ class PDFConverterDirect:
                             )
         
         return additional_styles
+
+    def _create_watermark_element(self, page_size, position, opacity):
+        """
+        Buat watermark element untuk ditambahkan ke PDF
+
+        Args:
+            page_size: Ukuran halaman
+            position (str): Posisi watermark
+            opacity (float): Transparansi watermark
+
+        Returns:
+            Spacer atau Image element untuk watermark
+        """
+        try:
+            if not self.watermark_manager or not self.watermark_manager.watermark_exists:
+                return None
+
+            from reportlab.platypus import Image as RLImage
+            from reportlab.lib.units import mm
+
+            # Load watermark image
+            watermark_path = self.watermark_manager.watermark_path
+
+            # Tentukan ukuran watermark (maksimal 30% dari halaman)
+            page_width, page_height = page_size
+            max_width = page_width * 0.3
+            max_height = page_height * 0.3
+
+            # Buat watermark image element
+            watermark_img = RLImage(
+                watermark_path,
+                width=max_width,
+                height=max_height
+            )
+
+            # Set transparency (simplified - reportlab doesn't support direct opacity)
+            # Watermark akan ditampilkan sebagai image biasa
+
+            return watermark_img
+
+        except Exception as e:
+            print(f"❌ Error creating watermark element: {str(e)}")
+            return None
     
     def convert_single_sheet_direct(self, excel_file, sheet_name, output_path, folder_prefix=""):
         """

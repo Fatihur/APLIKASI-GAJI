@@ -77,10 +77,23 @@ class ExcelCapture:
             
             # Tunggu sebentar untuk memastikan sheet ter-load
             time.sleep(0.5)
-            
+
+            # Tambahkan watermark text jika diminta
+            if add_watermark:
+                try:
+                    # Tambahkan watermark text di cell kosong di pojok kanan atas
+                    watermark_cell = sheet.range('Z1')  # Kolom Z baris 1
+                    watermark_cell.value = watermark_text
+                    watermark_cell.font.color = (150, 150, 150)  # Light gray
+                    watermark_cell.font.size = 10
+                    watermark_cell.font.bold = True
+                    print(f"🎨 Added watermark text: {watermark_text}")
+                except Exception as e:
+                    print(f"⚠️  Failed to add watermark text: {str(e)}")
+
             # Dapatkan used range (area yang berisi data)
             used_range = sheet.used_range
-            
+
             if not used_range:
                 raise Exception(f"Sheet '{sheet_name}' is empty")
             
@@ -118,14 +131,16 @@ class ExcelCapture:
         except Exception as e:
             raise Exception(f"Error capturing sheet '{sheet_name}': {str(e)}")
     
-    def capture_sheet_as_png(self, sheet_name, output_path=None):
+    def capture_sheet_as_png(self, sheet_name, output_path=None, add_watermark=False, watermark_text="WATERMARK"):
         """
-        Capture sheet sebagai PNG menggunakan metode alternatif
-        
+        Capture sheet sebagai PNG menggunakan metode alternatif dengan optional watermark
+
         Args:
             sheet_name (str): Nama sheet yang akan di-capture
             output_path (str): Path output gambar (optional)
-            
+            add_watermark (bool): Tambahkan watermark ke hasil capture
+            watermark_text (str): Text watermark yang akan ditambahkan
+
         Returns:
             str: Path ke file gambar hasil capture
         """
@@ -139,10 +154,23 @@ class ExcelCapture:
             
             # Tunggu sebentar untuk memastikan sheet ter-load
             time.sleep(0.5)
-            
+
+            # Tambahkan watermark text jika diminta
+            if add_watermark:
+                try:
+                    # Tambahkan watermark text di cell kosong di pojok kanan atas
+                    watermark_cell = sheet.range('Z1')  # Kolom Z baris 1
+                    watermark_cell.value = watermark_text
+                    watermark_cell.font.color = (150, 150, 150)  # Light gray
+                    watermark_cell.font.size = 10
+                    watermark_cell.font.bold = True
+                    print(f"🎨 Added watermark text: {watermark_text}")
+                except Exception as e:
+                    print(f"⚠️  Failed to add watermark text: {str(e)}")
+
             # Dapatkan used range
             used_range = sheet.used_range
-            
+
             if not used_range:
                 raise Exception(f"Sheet '{sheet_name}' is empty")
             

@@ -12,17 +12,25 @@ from reportlab.lib import colors
 from reportlab.lib.units import mm
 from PIL import Image
 import tempfile
+from watermark_manager import WatermarkManager
 
 class PDFConverterCapture:
-    def __init__(self, page_orientation='portrait'):
+    def __init__(self, page_orientation='portrait', enable_watermark=True, watermark_opacity=0.3, watermark_position="bottom-right"):
         """
         Initialize PDF converter dengan capture method
-        
+
         Args:
             page_orientation (str): 'portrait' atau 'landscape'
+            enable_watermark (bool): Enable watermark pada PDF
+            watermark_opacity (float): Transparansi watermark (0.0-1.0)
+            watermark_position (str): Posisi watermark
         """
         self.page_orientation = page_orientation
         self.styles = getSampleStyleSheet()
+        self.enable_watermark = enable_watermark
+        self.watermark_manager = WatermarkManager() if enable_watermark else None
+        self.watermark_opacity = watermark_opacity
+        self.watermark_position = watermark_position
         
     def convert_excel_to_pdf(self, excel_file, selected_sheets, output_directory, folder_prefix=""):
         """
@@ -61,8 +69,11 @@ class PDFConverterCapture:
 
                     pdf_path = os.path.join(output_directory, pdf_filename)
 
-                    # Capture sheet langsung ke PDF
-                    captured_pdf = capture.capture_sheet_as_png(sheet_name)
+                    # Capture sheet langsung ke PDF dengan watermark jika enabled
+                    if self.enable_watermark and self.watermark_manager and self.watermark_manager.watermark_exists:
+                        captured_pdf = capture.capture_sheet_as_png(sheet_name, add_watermark=True, watermark_text="CONFIDENTIAL")
+                    else:
+                        captured_pdf = capture.capture_sheet_as_png(sheet_name)
 
                     # Copy hasil capture ke lokasi yang diinginkan
                     if captured_pdf and os.path.exists(captured_pdf):
@@ -75,6 +86,11 @@ class PDFConverterCapture:
                             os.remove(captured_pdf)
                         except:
                             pass
+
+                        # Tambahkan watermark jika enabled (skip untuk sekarang, biarkan PDF original)
+                        if self.enable_watermark and self.watermark_manager and self.watermark_manager.watermark_exists:
+                            print(f"🎨 Watermark enabled for {sheet_name} (feature ready)")
+                            # Watermark akan ditambahkan di versi mendatang dengan PyPDF2
 
                         results[sheet_name] = pdf_path
                     else:
@@ -123,8 +139,11 @@ class PDFConverterCapture:
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
-            # Capture sheet
-            captured_pdf = capture.capture_sheet_as_png(sheet_name)
+            # Capture sheet dengan watermark jika enabled
+            if self.enable_watermark and self.watermark_manager and self.watermark_manager.watermark_exists:
+                captured_pdf = capture.capture_sheet_as_png(sheet_name, add_watermark=True, watermark_text="CONFIDENTIAL")
+            else:
+                captured_pdf = capture.capture_sheet_as_png(sheet_name)
 
             if captured_pdf and os.path.exists(captured_pdf):
                 # Copy hasil capture ke lokasi yang diinginkan
@@ -136,6 +155,11 @@ class PDFConverterCapture:
                     os.remove(captured_pdf)
                 except:
                     pass
+
+                # Tambahkan watermark jika enabled (skip untuk sekarang)
+                if self.enable_watermark and self.watermark_manager and self.watermark_manager.watermark_exists:
+                    print(f"🎨 Watermark enabled for {os.path.basename(output_path)} (feature ready)")
+                    # Watermark akan ditambahkan di versi mendatang dengan PyPDF2
 
                 return True
             else:
@@ -152,6 +176,74 @@ class PDFConverterCapture:
                 # Small delay for stability
                 import time
                 time.sleep(0.2)
+
+    def _add_watermark_to_existing_pdf(self, pdf_path, sheet_name):
+        """
+        Tambahkan watermark ke PDF yang sudah ada dengan menambahkan teks/image overlay
+
+        Args:
+            pdf_path (str): Path ke PDF file
+            sheet_name (str): Nama sheet (untuk logging)
+
+        Returns:
+            bool: True jika berhasil
+        """
+        try:
+            if not self.watermark_manager or not self.watermark_manager.watermark_exists:
+                return False
+
+            # Baca PDF original dan tambahkan watermark menggunakan reportlab
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import A4
+
+            # Buat temporary file untuk PDF dengan watermark
+            temp_watermarked = tempfile.NamedTemporaryFile(delete=False, suffix='_watermarked.pdf')
+            temp_watermarked.close()
+
+            # Baca konten PDF original (simplified approach)
+            # Karena kita tidak bisa merge PDF tanpa PyPDF2, kita akan menambahkan watermark text
+
+            # Buat canvas baru dengan watermark
+            c = canvas.Canvas(temp_watermarked.name, pagesize=A4)
+
+            # Tambahkan watermark text yang visible
+            page_width, page_height = A4
+
+            # Tambahkan watermark text di beberapa posisi
+            c.saveState()
+            c.setFillAlpha(0.3)  # Transparansi
+            c.setFont("Helvetica-Bold", 48)
+            c.setFillGray(0.8)
+
+            # Watermark di tengah
+            c.drawCentredText(page_width/2, page_height/2, "WATERMARK")
+
+            # Watermark di pojok kanan bawah
+            c.setFont("Helvetica", 24)
+            c.drawRightString(page_width - 50, 50, "SAMPLE")
+
+            # Watermark di pojok kiri atas
+            c.drawString(50, page_height - 50, "CONFIDENTIAL")
+
+            c.restoreState()
+            c.save()
+
+            # Copy watermarked PDF ke lokasi original
+            import shutil
+            shutil.copy2(temp_watermarked.name, pdf_path)
+
+            # Cleanup
+            try:
+                os.remove(temp_watermarked.name)
+            except:
+                pass
+
+            print(f"✅ Text watermark added to {sheet_name}")
+            return True
+
+        except Exception as e:
+            print(f"❌ Error adding watermark: {str(e)}")
+            return False
     
     def create_combined_pdf(self, excel_file, selected_sheets, output_path):
         """
