@@ -144,8 +144,10 @@ class ExcelToPDFApp:
         self.conversion_method_var = tk.StringVar(value="capture")
         ttk.Radiobutton(method_frame, text="Capture Method (Recommended)",
                        variable=self.conversion_method_var, value="capture").grid(row=1, column=0, sticky=tk.W, padx=(20, 0))
+        ttk.Radiobutton(method_frame, text="Direct Method (Fastest)",
+                       variable=self.conversion_method_var, value="direct").grid(row=2, column=0, sticky=tk.W, padx=(20, 0))
         ttk.Radiobutton(method_frame, text="Table Conversion",
-                       variable=self.conversion_method_var, value="table").grid(row=2, column=0, sticky=tk.W, padx=(20, 0))
+                       variable=self.conversion_method_var, value="table").grid(row=3, column=0, sticky=tk.W, padx=(20, 0))
 
         # Method description
         desc_frame = ttk.Frame(options_frame)
@@ -513,7 +515,9 @@ class ExcelToPDFApp:
         """Update description based on selected conversion method"""
         method = self.conversion_method_var.get()
         if method == "capture":
-            self.method_desc_var.set("Capture method preserves exact Excel layout and formatting (requires Excel installed)")
+            self.method_desc_var.set("Capture method preserves exact Excel layout and formatting (recommended)")
+        elif method == "direct":
+            self.method_desc_var.set("Direct method: Fastest conversion, no Excel app needed")
         else:
             self.method_desc_var.set("Table conversion method converts data to PDF tables (no Excel required)")
         
@@ -596,7 +600,43 @@ class ExcelToPDFApp:
                 file_display_name = os.path.basename(file_path)
                 self.status_var.set(f"Processing file: {file_display_name}")
 
-                if conversion_method == "capture":
+                if conversion_method == "direct":
+                    # Direct method - fastest, no Excel app needed
+                    from pdf_converter_direct import PDFConverterDirect
+
+                    # Get folder prefix for file naming
+                    folder_prefix = self.folder_names.get(file_path, "")
+
+                    # Use direct conversion (no Excel app)
+                    self.current_sheet_var.set(f"📄 Reading: {file_display_name}")
+                    self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
+
+                    converter = PDFConverterDirect()
+
+                    # Convert all sheets directly (fastest)
+                    results = converter.convert_excel_to_pdf_direct(file_path, sheets_to_convert, file_output_dir, folder_prefix)
+
+                    # Update progress for each sheet
+                    for sheet_name in sheets_to_convert:
+                        self.current_sheet_var.set(f"📄 Converting: {sheet_name} (from {file_display_name})")
+
+                        if results.get(sheet_name):
+                            total_sheets_converted += 1
+                            self.current_sheet_var.set(f"✅ Completed: {sheet_name}")
+                        else:
+                            print(f"Failed to convert sheet: {sheet_name}")
+                            self.current_sheet_var.set(f"❌ Failed: {sheet_name}")
+
+                        current_sheet += 1
+                        progress = (current_sheet / total_sheets) * 100
+                        self.progress_var.set(progress)
+                        self.progress_percent_var.set(f"{progress:.1f}%")
+
+                        # Small delay to show progress
+                        import time
+                        time.sleep(0.05)  # Faster delay for direct method
+
+                elif conversion_method == "capture":
                     # Get folder prefix for file naming
                     folder_prefix = self.folder_names.get(file_path, "")
 

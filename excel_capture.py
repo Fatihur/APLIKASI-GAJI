@@ -27,9 +27,13 @@ class ExcelCapture:
             # Close any existing app first
             self.close()
 
-            # Buka Excel application (visible untuk stability)
-            self.app = xw.App(visible=True, add_book=False)
-            self._app_visible = True
+            # Buka Excel application (hidden untuk tidak mengganggu user)
+            self.app = xw.App(visible=False, add_book=False)
+            self._app_visible = False
+
+            # Set app properties untuk stability
+            self.app.display_alerts = False
+            self.app.screen_updating = False
 
             # Buka workbook
             self.workbook = self.app.books.open(file_path)

@@ -149,6 +149,9 @@ class PDFConverterCapture:
             # Hanya close jika kita yang membuat instance
             if close_after:
                 capture.close()
+                # Small delay for stability
+                import time
+                time.sleep(0.2)
     
     def create_combined_pdf(self, excel_file, selected_sheets, output_path):
         """
