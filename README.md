@@ -14,6 +14,9 @@ Aplikasi Python untuk mengkonversi file Excel ke PDF dengan fitur bulk conversio
 - ✅ **Professional Layout**: Hasil PDF yang rapi dan mudah dibaca
 - ✅ **Capture Method**: Capture Excel sheet persis seperti aslinya (format portrait, satu halaman)
 - ✅ **Dual Conversion Mode**: Pilih antara Capture Method atau Table Conversion
+- ✅ **Multiple Files Support**: Proses beberapa file Excel sekaligus
+- ✅ **Folder Per File**: Setiap file Excel mendapat folder terpisah dengan nama yang bisa disesuaikan
+- ✅ **Auto Sheet Filtering**: Otomatis mengabaikan sheet 1-9
 
 ## Persyaratan Sistem
 
@@ -37,16 +40,21 @@ Aplikasi Python untuk mengkonversi file Excel ke PDF dengan fitur bulk conversio
    python main.py
    ```
 
-2. **Upload File Excel**:
-   - Klik tombol "Browse" untuk memilih file Excel (.xlsx atau .xls)
+2. **Add Excel Files**:
+   - Klik tombol "Add Files" untuk memilih multiple file Excel (.xlsx atau .xls)
+   - Gunakan "Remove Selected" untuk menghapus file yang dipilih
+   - Gunakan "Clear All" untuk menghapus semua file
+   - Klik "Set Folder Name" untuk mengatur nama folder custom per file
 
 3. **Pilih Output Directory** (Opsional):
    - Klik tombol "Browse" di bagian Output Directory untuk memilih lokasi penyimpanan
    - Jika tidak dipilih, file akan disimpan di direktori yang sama dengan file Excel
 
-4. **Pilih Sheet**:
-   - Setelah file di-upload, daftar sheet akan muncul
-   - Pilih sheet yang ingin dikonversi (bisa multiple selection)
+4. **Pilih Sheet** (Opsional):
+   - Klik pada file di daftar untuk melihat sheet-nya
+   - Pilih sheet tertentu yang ingin dikonversi (multiple selection)
+   - Jika tidak ada sheet yang dipilih, semua sheet dari semua file akan dikonversi
+   - Sheet 1-9 otomatis diabaikan
    - Gunakan "Select All" untuk memilih semua sheet
    - Gunakan "Clear All" untuk membatalkan pilihan
 
@@ -64,15 +72,33 @@ Aplikasi Python untuk mengkonversi file Excel ke PDF dengan fitur bulk conversio
 
 ## Struktur File Output
 
-Jika bulk mode diaktifkan, file output akan mengikuti format:
+Aplikasi akan membuat folder terpisah untuk setiap file Excel:
 ```
-[nama_file_excel]_[nama_sheet].pdf
+output_directory/
+├── [folder_name_file1]/
+│   ├── [sheet1].pdf
+│   ├── [sheet2].pdf
+│   └── [sheet3].pdf
+├── [folder_name_file2]/
+│   ├── [sheet1].pdf
+│   └── [sheet2].pdf
+└── [folder_name_file3]/
+    └── [sheet1].pdf
 ```
 
 Contoh:
-- `sample_data_Data Karyawan.pdf`
-- `sample_data_Laporan Penjualan.pdf`
-- `sample_data_Summary.pdf`
+```
+output/
+├── sample_data/
+│   ├── Data Karyawan.pdf
+│   ├── Laporan Penjualan.pdf
+│   └── Summary.pdf
+├── company_report/
+│   ├── Data Karyawan.pdf
+│   └── Summary.pdf
+└── financial_data/
+    └── Balance Sheet.pdf
+```
 
 ## Fitur Formatting yang Didukung
 
