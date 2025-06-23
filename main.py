@@ -336,6 +336,7 @@ class ExcelToPDFApp:
             'summary karyawan',
             'pph 21',
             'payroll',
+            'payrol',
             'tarif ter',
             'hr_libur',
             'jm_istrht'
@@ -596,20 +597,23 @@ class ExcelToPDFApp:
                 self.status_var.set(f"Processing file: {file_display_name}")
 
                 if conversion_method == "capture":
+                    # Get folder prefix for file naming
+                    folder_prefix = self.folder_names.get(file_path, "")
+
+                    # Use optimized bulk conversion
+                    self.current_sheet_var.set(f"📄 Opening: {file_display_name}")
+                    self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
+
                     converter = PDFConverterCapture()
 
+                    # Convert all sheets in one Excel session (faster)
+                    results = converter.convert_excel_to_pdf(file_path, sheets_to_convert, file_output_dir, folder_prefix)
+
+                    # Update progress for each sheet
                     for sheet_name in sheets_to_convert:
-                        # Update current sheet display
                         self.current_sheet_var.set(f"📄 Converting: {sheet_name} (from {file_display_name})")
-                        self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
 
-                        # Create output path in file's folder
-                        safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                        output_path = os.path.join(file_output_dir, f"{safe_sheet_name}.pdf")
-
-                        success = converter.convert_single_sheet(file_path, sheet_name, output_path)
-
-                        if success:
+                        if results.get(sheet_name):
                             total_sheets_converted += 1
                             self.current_sheet_var.set(f"✅ Completed: {sheet_name}")
                         else:
@@ -632,14 +636,21 @@ class ExcelToPDFApp:
                         bulk_mode=self.bulk_mode_var.get()
                     )
 
+                    # Get folder prefix for file naming
+                    folder_prefix = self.folder_names.get(file_path, "")
+
                     for sheet_name in sheets_to_convert:
                         # Update current sheet display
                         self.current_sheet_var.set(f"📄 Converting: {sheet_name} (from {file_display_name})")
                         self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
 
-                        # Create output path in file's folder
+                        # Create output path in file's folder with prefix
                         safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                        output_path = os.path.join(file_output_dir, f"{safe_sheet_name}.pdf")
+                        if folder_prefix:
+                            pdf_filename = f"{folder_prefix}_{safe_sheet_name}.pdf"
+                        else:
+                            pdf_filename = f"{safe_sheet_name}.pdf"
+                        output_path = os.path.join(file_output_dir, pdf_filename)
 
                         try:
                             converter.convert_sheet_to_pdf(file_path, sheet_name, output_path)
