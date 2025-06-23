@@ -24,6 +24,8 @@ class ExcelToPDFApp:
         self.selected_sheets = []
         self.output_directory = ""
         self.folder_names = {}  # Custom folder names per file
+        self.file_checkboxes = {}  # Checkbox variables per file
+        self.file_checkbox_widgets = {}  # Checkbox widgets per file
 
         self.setup_ui()
         
@@ -62,16 +64,20 @@ class ExcelToPDFApp:
         file_frame = ttk.LabelFrame(main_frame, text="Select Excel Files", padding="10")
         file_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
 
-        # File list with scrollbar
+        # File list with checkboxes
         files_list_frame = ttk.Frame(file_frame)
         files_list_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
 
-        self.files_listbox = tk.Listbox(files_list_frame, height=4, selectmode=tk.SINGLE)
-        files_scrollbar = ttk.Scrollbar(files_list_frame, orient=tk.VERTICAL, command=self.files_listbox.yview)
-        self.files_listbox.configure(yscrollcommand=files_scrollbar.set)
+        # Simple frame for file checkboxes
+        self.files_container = ttk.Frame(files_list_frame)
+        self.files_container.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=5, pady=5)
 
-        self.files_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E))
-        files_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        # Add "Select All Files" checkbox
+        self.select_all_files_var = tk.BooleanVar()
+        select_all_cb = ttk.Checkbutton(files_list_frame, text="Select All Files",
+                                       variable=self.select_all_files_var,
+                                       command=self.toggle_all_files)
+        select_all_cb.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
 
         # File control buttons
         file_buttons_frame = ttk.Frame(file_frame)
@@ -96,7 +102,7 @@ class ExcelToPDFApp:
         default_info.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
         
         # Sheets selection
-        sheets_frame = ttk.LabelFrame(main_frame, text="Select Sheets to Convert (Auto-ignores sheets 1-9)", padding="10")
+        sheets_frame = ttk.LabelFrame(main_frame, text="Select Sheets to Convert (Auto-ignores: Payroll adjust, Database, Summary Amman, etc.)", padding="10")
         sheets_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
         
         # Sheets listbox with scrollbar
@@ -170,11 +176,23 @@ class ExcelToPDFApp:
                                           maximum=100, length=400)
         self.progress_bar.grid(row=1, column=1, sticky=(tk.W, tk.E))
 
+        # Progress percentage label
+        self.progress_percent_var = tk.StringVar(value="0%")
+        progress_percent_label = ttk.Label(convert_frame, textvariable=self.progress_percent_var,
+                                         font=('Arial', 9, 'bold'))
+        progress_percent_label.grid(row=1, column=2, padx=(10, 0))
+
+        # Current sheet being processed
+        self.current_sheet_var = tk.StringVar(value="")
+        current_sheet_label = ttk.Label(convert_frame, textvariable=self.current_sheet_var,
+                                       font=('Arial', 9), foreground='green')
+        current_sheet_label.grid(row=2, column=0, columnspan=3, pady=(5, 0), sticky=tk.W)
+
         # Status label
-        self.status_var = tk.StringVar(value="Select an Excel file to begin")
+        self.status_var = tk.StringVar(value="Add Excel files to begin")
         status_label = ttk.Label(convert_frame, textvariable=self.status_var,
                                 font=('Arial', 9), foreground='blue')
-        status_label.grid(row=2, column=0, columnspan=2, pady=(10, 0), sticky=tk.W)
+        status_label.grid(row=3, column=0, columnspan=3, pady=(5, 0), sticky=tk.W)
         
         # Configure grid weights
         scrollable_frame.columnconfigure(0, weight=1)
@@ -196,9 +214,7 @@ class ExcelToPDFApp:
 
         # Convert frame
         convert_frame.columnconfigure(1, weight=1)
-
-        # Bind file selection to update sheets
-        self.files_listbox.bind('<<ListboxSelect>>', self.on_file_select)
+        convert_frame.columnconfigure(2, weight=0)  # Progress percentage column
 
         # Bind mousewheel to canvas for scrolling
         def _on_mousewheel(event):
@@ -208,29 +224,45 @@ class ExcelToPDFApp:
         
     def browse_files(self):
         """Browse and add multiple Excel files"""
+        print("🔍 Browse files called")  # Debug
+
         file_paths = filedialog.askopenfilenames(
             title="Select Excel Files",
             filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
         )
 
+        print(f"📁 Selected files: {file_paths}")  # Debug
+
+        if not file_paths:
+            print("❌ No files selected")
+            return
+
         for file_path in file_paths:
+            print(f"📄 Processing file: {file_path}")  # Debug
+
             if file_path not in self.excel_files:
                 self.excel_files.append(file_path)
 
-                # Add to listbox with just filename
-                filename = os.path.basename(file_path)
-                self.files_listbox.insert(tk.END, filename)
-
                 # Set default folder name (filename without extension)
+                filename = os.path.basename(file_path)
                 base_name = os.path.splitext(filename)[0]
                 self.folder_names[file_path] = base_name
+
+                print(f"✅ Added file: {filename}")  # Debug
+
+                # Create checkbox for this file
+                try:
+                    self.add_file_checkbox(file_path, filename)
+                    print(f"✅ Created checkbox for: {filename}")  # Debug
+                except Exception as e:
+                    print(f"❌ Error creating checkbox: {str(e)}")
 
                 # Load sheets data for this file
                 try:
                     reader = ExcelReader(file_path)
                     sheets_info = reader.get_sheets_info()
 
-                    # Filter out sheets 1-9
+                    # Filter out ignored sheets
                     filtered_sheets = {}
                     for sheet_name, info in sheets_info.items():
                         if not self.is_sheet_ignored(sheet_name):
@@ -239,105 +271,39 @@ class ExcelToPDFApp:
                     self.files_data[file_path] = filtered_sheets
                     reader.close()
 
+                    print(f"✅ Loaded {len(filtered_sheets)} sheets from {filename}")  # Debug
+
                 except Exception as e:
-                    print(f"Error loading {filename}: {str(e)}")
+                    print(f"❌ Error loading {filename}: {str(e)}")
                     self.files_data[file_path] = {}
+            else:
+                print(f"⚠️  File already added: {file_path}")
 
         self.update_convert_button_state()
+        print(f"📊 Total files: {len(self.excel_files)}")  # Debug
 
-    def is_sheet_ignored(self, sheet_name):
-        """Check if sheet should be ignored based on specific sheet names"""
-        # List of sheet names to ignore
-        ignored_sheets = [
-            'Payroll adjust',
-            'Database',
-            'Summary Amman',
-            'Summary Karyawan',
-            'PPh 21',
-            'Payroll',
-            'Tarif TER',
-            'hr_libur',
-            'jm_istrht'
-        ]
+    def add_file_checkbox(self, file_path, filename):
+        """Add checkbox for a file"""
+        # Create checkbox variable
+        var = tk.BooleanVar(value=True)  # Default checked
+        self.file_checkboxes[file_path] = var
 
-        # Case-insensitive comparison
-        sheet_name_lower = sheet_name.strip().lower()
+        # Create checkbox directly in container
+        checkbox = ttk.Checkbutton(self.files_container, text=filename, variable=var,
+                                  command=self.update_convert_button_state)
+        checkbox.pack(anchor=tk.W, padx=5, pady=2)
 
-        for ignored_sheet in ignored_sheets:
-            if sheet_name_lower == ignored_sheet.lower():
-                return True
+        # Store widget reference
+        self.file_checkbox_widgets[file_path] = {
+            'checkbox': checkbox,
+            'var': var
+        }
 
-        return False
+        # Bind click to show sheets
+        checkbox.bind('<Button-1>', lambda e, fp=file_path: self.show_sheets_for_file(fp))
 
-    def remove_selected_file(self):
-        """Remove selected file from list"""
-        selection = self.files_listbox.curselection()
-        if selection:
-            index = selection[0]
-            if index < len(self.excel_files):
-                file_path = self.excel_files[index]
-
-                # Remove from all data structures
-                self.excel_files.pop(index)
-                self.files_listbox.delete(index)
-
-                if file_path in self.files_data:
-                    del self.files_data[file_path]
-                if file_path in self.folder_names:
-                    del self.folder_names[file_path]
-
-                # Clear sheets if this was the selected file
-                self.sheets_listbox.delete(0, tk.END)
-
-        self.update_convert_button_state()
-
-    def clear_all_files(self):
-        """Clear all files"""
-        self.excel_files.clear()
-        self.files_data.clear()
-        self.folder_names.clear()
-        self.files_listbox.delete(0, tk.END)
-        self.sheets_listbox.delete(0, tk.END)
-        self.update_convert_button_state()
-
-    def set_folder_name(self):
-        """Set custom folder name for selected file"""
-        selection = self.files_listbox.curselection()
-        if not selection:
-            messagebox.showwarning("Warning", "Please select a file first")
-            return
-
-        index = selection[0]
-        if index >= len(self.excel_files):
-            return
-
-        file_path = self.excel_files[index]
-        current_name = self.folder_names.get(file_path, "")
-
-        # Simple input dialog
-        new_name = tk.simpledialog.askstring(
-            "Folder Name",
-            f"Enter folder name for {os.path.basename(file_path)}:",
-            initialvalue=current_name
-        )
-
-        if new_name:
-            # Sanitize folder name
-            safe_name = "".join(c for c in new_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-            self.folder_names[file_path] = safe_name
-
-    def on_file_select(self, event):
-        """Handle file selection to show its sheets"""
-        selection = self.files_listbox.curselection()
-        if not selection:
-            return
-
-        index = selection[0]
-        if index >= len(self.excel_files):
-            return
-
-        file_path = self.excel_files[index]
-
+    def show_sheets_for_file(self, file_path):
+        """Show sheets for clicked file"""
         # Clear current sheets
         self.sheets_listbox.delete(0, tk.END)
 
@@ -347,16 +313,164 @@ class ExcelToPDFApp:
             for sheet_name in sheets_data.keys():
                 self.sheets_listbox.insert(tk.END, sheet_name)
 
-        self.status_var.set(f"Showing sheets for: {os.path.basename(file_path)}")
+        filename = os.path.basename(file_path)
+        self.status_var.set(f"Showing sheets for: {filename}")
+
+    def toggle_all_files(self):
+        """Toggle all file checkboxes"""
+        select_all = self.select_all_files_var.get()
+
+        for file_path in self.excel_files:
+            if file_path in self.file_checkboxes:
+                self.file_checkboxes[file_path].set(select_all)
+
+        self.update_convert_button_state()
+
+    def is_sheet_ignored(self, sheet_name):
+        """Check if sheet should be ignored based on keywords"""
+        # List of exact matches and keywords to ignore (case-insensitive)
+        ignored_exact = [
+            'payroll adjust',
+            'database',
+            'summary amman',
+            'summary karyawan',
+            'pph 21',
+            'payroll',
+            'tarif ter',
+            'hr_libur',
+            'jm_istrht'
+        ]
+
+        # Keywords that should match as whole words or at word boundaries
+        ignored_keywords = [
+            'adjust',  # But not "adjustment"
+        ]
+
+        # Case-insensitive comparison
+        sheet_name_lower = sheet_name.strip().lower()
+
+        # Check exact matches first
+        for exact_match in ignored_exact:
+            if exact_match in sheet_name_lower:
+                return True
+
+        # Check keyword matches (whole word boundaries)
+        import re
+        for keyword in ignored_keywords:
+            # Use word boundary regex to match whole words only
+            pattern = r'\b' + re.escape(keyword) + r'\b'
+            if re.search(pattern, sheet_name_lower):
+                return True
+
+        return False
+
+    def remove_selected_file(self):
+        """Remove selected file from list"""
+        # Find checked files to remove
+        files_to_remove = []
+        for file_path in self.excel_files:
+            if file_path in self.file_checkboxes and self.file_checkboxes[file_path].get():
+                files_to_remove.append(file_path)
+
+        if not files_to_remove:
+            messagebox.showwarning("Warning", "Please check files to remove")
+            return
+
+        for file_path in files_to_remove:
+            # Remove from data structures
+            self.excel_files.remove(file_path)
+
+            if file_path in self.files_data:
+                del self.files_data[file_path]
+            if file_path in self.folder_names:
+                del self.folder_names[file_path]
+
+            # Remove checkbox widget
+            if file_path in self.file_checkbox_widgets:
+                self.file_checkbox_widgets[file_path]['checkbox'].destroy()
+                del self.file_checkbox_widgets[file_path]
+                del self.file_checkboxes[file_path]
+
+        # Clear sheets
+        self.sheets_listbox.delete(0, tk.END)
+        self.update_convert_button_state()
+
+    def clear_all_files(self):
+        """Clear all files"""
+        # Remove all checkbox widgets
+        for file_path in list(self.file_checkbox_widgets.keys()):
+            self.file_checkbox_widgets[file_path]['checkbox'].destroy()
+
+        # Clear all data structures
+        self.excel_files.clear()
+        self.files_data.clear()
+        self.folder_names.clear()
+        self.file_checkboxes.clear()
+        self.file_checkbox_widgets.clear()
+        self.sheets_listbox.delete(0, tk.END)
+        self.select_all_files_var.set(False)
+        self.update_convert_button_state()
+
+    def set_folder_name(self):
+        """Set custom folder name for checked files"""
+        # Find checked files
+        checked_files = []
+        for file_path in self.excel_files:
+            if file_path in self.file_checkboxes and self.file_checkboxes[file_path].get():
+                checked_files.append(file_path)
+
+        if not checked_files:
+            messagebox.showwarning("Warning", "Please check files to set folder names")
+            return
+
+        if len(checked_files) == 1:
+            # Single file - direct input
+            file_path = checked_files[0]
+            current_name = self.folder_names.get(file_path, "")
+
+            new_name = simpledialog.askstring(
+                "Folder Name",
+                f"Enter folder name for {os.path.basename(file_path)}:",
+                initialvalue=current_name
+            )
+
+            if new_name:
+                safe_name = "".join(c for c in new_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                self.folder_names[file_path] = safe_name
+        else:
+            # Multiple files - show dialog for each
+            for file_path in checked_files:
+                current_name = self.folder_names.get(file_path, "")
+
+                new_name = simpledialog.askstring(
+                    "Folder Name",
+                    f"Enter folder name for {os.path.basename(file_path)}:",
+                    initialvalue=current_name
+                )
+
+                if new_name:
+                    safe_name = "".join(c for c in new_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                    self.folder_names[file_path] = safe_name
+
+
 
     def update_convert_button_state(self):
-        """Update convert button state based on files"""
-        if self.excel_files:
+        """Update convert button state based on checked files"""
+        checked_files = []
+        for file_path in self.excel_files:
+            if file_path in self.file_checkboxes and self.file_checkboxes[file_path].get():
+                checked_files.append(file_path)
+
+        if checked_files:
             self.convert_button.config(state='normal')
-            self.status_var.set(f"Ready to convert {len(self.excel_files)} file(s)")
+            total_sheets = sum(len(self.files_data.get(f, {})) for f in checked_files)
+            self.status_var.set(f"Ready to convert {len(checked_files)} file(s), {total_sheets} sheets")
         else:
             self.convert_button.config(state='disabled')
-            self.status_var.set("Add Excel files to begin")
+            if self.excel_files:
+                self.status_var.set("Check files to convert")
+            else:
+                self.status_var.set("Add Excel files to begin")
 
     def browse_output_directory(self):
         directory = filedialog.askdirectory(
@@ -407,26 +521,21 @@ class ExcelToPDFApp:
             messagebox.showwarning("Warning", "Please add Excel files first")
             return
 
-        # Check if we have a file selected for sheet selection
-        file_selection = self.files_listbox.curselection()
-        if file_selection:
-            # Convert only selected sheets from selected file
-            selected_indices = self.sheets_listbox.curselection()
-            if not selected_indices:
-                messagebox.showwarning("Warning", "Please select at least one sheet to convert")
-                return
+        # Check if any files are checked
+        checked_files = [f for f in self.excel_files if self.file_checkboxes.get(f, tk.BooleanVar()).get()]
+        if not checked_files:
+            messagebox.showwarning("Warning", "Please check at least one file to convert")
+            return
 
-            self.selected_sheets = [self.sheets_listbox.get(i) for i in selected_indices]
-            selected_file_index = file_selection[0]
-            self.selected_file = self.excel_files[selected_file_index]
-        else:
-            # Convert all sheets from all files
-            self.selected_sheets = []
-            self.selected_file = None
+        # Auto-select all valid sheets (not ignored) from checked files
+        self.selected_sheets = []
+        self.selected_file = None
 
         # Start conversion in separate thread
         self.convert_button.config(state='disabled')
         self.progress_var.set(0)
+        self.progress_percent_var.set("0%")
+        self.current_sheet_var.set("")
 
         thread = threading.Thread(target=self.convert_sheets)
         thread.daemon = True
@@ -442,19 +551,30 @@ class ExcelToPDFApp:
             total_files = 0
             total_sheets_converted = 0
 
-            if hasattr(self, 'selected_file') and self.selected_file:
-                # Convert only selected sheets from selected file
-                files_to_process = [(self.selected_file, self.selected_sheets)]
-                total_files = 1
-            else:
-                # Convert all sheets from all files
-                files_to_process = []
-                for file_path in self.excel_files:
+            # Convert all valid sheets from checked files
+            files_to_process = []
+            for file_path in self.excel_files:
+                # Only process checked files
+                if (file_path in self.file_checkboxes and
+                    self.file_checkboxes[file_path].get()):
+
+                    # Get all sheets and filter out ignored ones
                     if file_path in self.files_data:
                         sheets = list(self.files_data[file_path].keys())
-                        if sheets:  # Only add if file has sheets
-                            files_to_process.append((file_path, sheets))
-                total_files = len(files_to_process)
+                    else:
+                        # Load sheets if not already loaded
+                        try:
+                            reader = ExcelReader(file_path)
+                            all_sheets = reader.get_sheet_names()
+                            sheets = [s for s in all_sheets if not self.is_sheet_ignored(s)]
+                            reader.close()
+                        except:
+                            sheets = []
+
+                    if sheets:  # Only add if file has valid sheets
+                        files_to_process.append((file_path, sheets))
+
+            total_files = len(files_to_process)
 
             if not files_to_process:
                 messagebox.showwarning("Warning", "No sheets to convert")
@@ -472,13 +592,16 @@ class ExcelToPDFApp:
                 if not os.path.exists(file_output_dir):
                     os.makedirs(file_output_dir)
 
-                self.status_var.set(f"Processing file: {os.path.basename(file_path)}")
+                file_display_name = os.path.basename(file_path)
+                self.status_var.set(f"Processing file: {file_display_name}")
 
                 if conversion_method == "capture":
                     converter = PDFConverterCapture()
 
                     for sheet_name in sheets_to_convert:
-                        self.status_var.set(f"Capturing: {sheet_name} from {os.path.basename(file_path)}")
+                        # Update current sheet display
+                        self.current_sheet_var.set(f"📄 Converting: {sheet_name} (from {file_display_name})")
+                        self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
 
                         # Create output path in file's folder
                         safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
@@ -488,12 +611,19 @@ class ExcelToPDFApp:
 
                         if success:
                             total_sheets_converted += 1
+                            self.current_sheet_var.set(f"✅ Completed: {sheet_name}")
                         else:
                             print(f"Failed to capture sheet: {sheet_name}")
+                            self.current_sheet_var.set(f"❌ Failed: {sheet_name}")
 
                         current_sheet += 1
                         progress = (current_sheet / total_sheets) * 100
                         self.progress_var.set(progress)
+                        self.progress_percent_var.set(f"{progress:.1f}%")
+
+                        # Small delay to show progress
+                        import time
+                        time.sleep(0.1)
 
                 else:
                     # Table conversion method
@@ -503,7 +633,9 @@ class ExcelToPDFApp:
                     )
 
                     for sheet_name in sheets_to_convert:
-                        self.status_var.set(f"Converting: {sheet_name} from {os.path.basename(file_path)}")
+                        # Update current sheet display
+                        self.current_sheet_var.set(f"📄 Converting: {sheet_name} (from {file_display_name})")
+                        self.status_var.set(f"File {files_to_process.index((file_path, sheets_to_convert)) + 1}/{len(files_to_process)}")
 
                         # Create output path in file's folder
                         safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
@@ -512,14 +644,22 @@ class ExcelToPDFApp:
                         try:
                             converter.convert_sheet_to_pdf(file_path, sheet_name, output_path)
                             total_sheets_converted += 1
+                            self.current_sheet_var.set(f"✅ Completed: {sheet_name}")
                         except Exception as e:
                             print(f"Failed to convert sheet {sheet_name}: {str(e)}")
+                            self.current_sheet_var.set(f"❌ Failed: {sheet_name}")
 
                         current_sheet += 1
                         progress = (current_sheet / total_sheets) * 100
                         self.progress_var.set(progress)
+                        self.progress_percent_var.set(f"{progress:.1f}%")
+
+                        # Small delay to show progress
+                        import time
+                        time.sleep(0.1)
 
             self.status_var.set(f"Conversion completed: {total_sheets_converted}/{total_sheets} sheets from {total_files} file(s)")
+            self.current_sheet_var.set(f"🎉 All done! Converted {total_sheets_converted} sheets successfully")
             messagebox.showinfo("Success",
                               f"Successfully converted {total_sheets_converted}/{total_sheets} sheets from {total_files} file(s)\n"
                               f"Output saved to: {base_output_dir}")
@@ -527,10 +667,14 @@ class ExcelToPDFApp:
         except Exception as e:
             messagebox.showerror("Error", f"Conversion failed: {str(e)}")
             self.status_var.set("Conversion failed")
+            self.current_sheet_var.set("❌ Conversion failed")
 
         finally:
             self.convert_button.config(state='normal')
             self.progress_var.set(0)
+            self.progress_percent_var.set("0%")
+            # Keep the final message for a few seconds, then clear
+            self.root.after(5000, lambda: self.current_sheet_var.set(""))
             
     def get_files_summary(self):
         """Get summary of loaded files"""

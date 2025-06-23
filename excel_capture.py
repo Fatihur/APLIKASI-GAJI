@@ -14,23 +14,28 @@ class ExcelCapture:
         """Initialize Excel capture"""
         self.app = None
         self.workbook = None
+        self._app_visible = False
         
     def open_excel_file(self, file_path):
         """
         Buka file Excel menggunakan xlwings
-        
+
         Args:
             file_path (str): Path ke file Excel
         """
         try:
-            # Buka Excel application (hidden)
-            self.app = xw.App(visible=False, add_book=False)
-            
+            # Close any existing app first
+            self.close()
+
+            # Buka Excel application (visible untuk stability)
+            self.app = xw.App(visible=True, add_book=False)
+            self._app_visible = True
+
             # Buka workbook
             self.workbook = self.app.books.open(file_path)
-            
+
             return True
-            
+
         except Exception as e:
             self.close()
             raise Exception(f"Error opening Excel file: {str(e)}")
@@ -205,11 +210,19 @@ class ExcelCapture:
             if self.workbook:
                 self.workbook.close()
                 self.workbook = None
-                
+
             if self.app:
-                self.app.quit()
+                # Force quit to ensure clean closure
+                try:
+                    self.app.quit()
+                except:
+                    pass
                 self.app = None
-                
+                self._app_visible = False
+
+            # Small delay to ensure Excel is fully closed
+            time.sleep(0.5)
+
         except Exception as e:
             print(f"Error closing Excel: {str(e)}")
     

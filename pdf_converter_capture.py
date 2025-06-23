@@ -27,112 +27,115 @@ class PDFConverterCapture:
     def convert_excel_to_pdf(self, excel_file, selected_sheets, output_directory):
         """
         Konversi Excel sheets ke PDF menggunakan capture method
-        
+
         Args:
             excel_file (str): Path ke file Excel
             selected_sheets (list): List nama sheet yang akan dikonversi
             output_directory (str): Direktori output
-            
+
         Returns:
             dict: Dictionary hasil konversi {sheet_name: pdf_path}
         """
         results = {}
-        capture = ExcelCapture()
-        
-        try:
-            # Buka file Excel
-            capture.open_excel_file(excel_file)
-            
-            # Buat direktori output jika belum ada
-            if not os.path.exists(output_directory):
-                os.makedirs(output_directory)
-            
-            # Konversi setiap sheet
-            for sheet_name in selected_sheets:
-                try:
-                    # Nama file output
-                    base_name = os.path.splitext(os.path.basename(excel_file))[0]
-                    safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                    pdf_filename = f"{base_name}_{safe_sheet_name}.pdf"
-                    pdf_path = os.path.join(output_directory, pdf_filename)
-                    
-                    # Capture sheet langsung ke PDF
-                    captured_pdf = capture.capture_sheet_as_png(sheet_name)
-                    
-                    # Copy hasil capture ke lokasi yang diinginkan
-                    if captured_pdf and os.path.exists(captured_pdf):
-                        # Jika hasil capture sudah berupa PDF, copy saja
-                        import shutil
-                        shutil.copy2(captured_pdf, pdf_path)
-                        
-                        # Hapus file temporary
-                        try:
-                            os.remove(captured_pdf)
-                        except:
-                            pass
-                        
-                        results[sheet_name] = pdf_path
-                    else:
-                        results[sheet_name] = None
-                        
-                except Exception as e:
-                    print(f"Error converting sheet '{sheet_name}': {str(e)}")
+
+        # Buat direktori output jika belum ada
+        if not os.path.exists(output_directory):
+            os.makedirs(output_directory)
+
+        # Konversi setiap sheet dengan instance Excel terpisah untuk stability
+        for sheet_name in selected_sheets:
+            capture = ExcelCapture()
+            try:
+                # Buka file Excel untuk sheet ini
+                capture.open_excel_file(excel_file)
+
+                # Nama file output
+                base_name = os.path.splitext(os.path.basename(excel_file))[0]
+                safe_sheet_name = "".join(c for c in sheet_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                pdf_filename = f"{base_name}_{safe_sheet_name}.pdf"
+                pdf_path = os.path.join(output_directory, pdf_filename)
+
+                # Capture sheet langsung ke PDF
+                captured_pdf = capture.capture_sheet_as_png(sheet_name)
+
+                # Copy hasil capture ke lokasi yang diinginkan
+                if captured_pdf and os.path.exists(captured_pdf):
+                    # Jika hasil capture sudah berupa PDF, copy saja
+                    import shutil
+                    shutil.copy2(captured_pdf, pdf_path)
+
+                    # Hapus file temporary
+                    try:
+                        os.remove(captured_pdf)
+                    except:
+                        pass
+
+                    results[sheet_name] = pdf_path
+                else:
                     results[sheet_name] = None
-            
-        except Exception as e:
-            raise Exception(f"Error opening Excel file: {str(e)}")
-            
-        finally:
-            capture.close()
-        
+
+            except Exception as e:
+                print(f"Error converting sheet '{sheet_name}': {str(e)}")
+                results[sheet_name] = None
+
+            finally:
+                capture.close()
+                # Small delay between conversions
+                import time
+                time.sleep(1)
+
         return results
     
     def convert_single_sheet(self, excel_file, sheet_name, output_path):
         """
         Konversi single sheet ke PDF
-        
+
         Args:
             excel_file (str): Path ke file Excel
             sheet_name (str): Nama sheet
             output_path (str): Path output PDF
-            
+
         Returns:
             bool: True jika berhasil
         """
         capture = ExcelCapture()
-        
+
         try:
             # Buka file Excel
             capture.open_excel_file(excel_file)
-            
+
             # Buat direktori output jika belum ada
             output_dir = os.path.dirname(output_path)
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
-            
+
             # Capture sheet
             captured_pdf = capture.capture_sheet_as_png(sheet_name)
-            
+
             if captured_pdf and os.path.exists(captured_pdf):
                 # Copy hasil capture ke lokasi yang diinginkan
                 import shutil
                 shutil.copy2(captured_pdf, output_path)
-                
+
                 # Hapus file temporary
                 try:
                     os.remove(captured_pdf)
                 except:
                     pass
-                
+
                 return True
             else:
                 return False
-                
+
         except Exception as e:
-            raise Exception(f"Error converting sheet '{sheet_name}': {str(e)}")
-            
+            print(f"Error converting sheet '{sheet_name}': {str(e)}")
+            return False
+
         finally:
             capture.close()
+            # Small delay for stability
+            import time
+            time.sleep(0.5)
     
     def create_combined_pdf(self, excel_file, selected_sheets, output_path):
         """
