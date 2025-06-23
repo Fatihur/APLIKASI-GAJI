@@ -1,0 +1,6 @@
+openpyxl
+reportlab
+Pillow
+xlsxwriter
+pywin32
+xlwings
